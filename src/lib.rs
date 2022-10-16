@@ -97,6 +97,7 @@ impl From<RpcParams> for Params {
 struct RemoteCaller {
     http_client: reqwest::Client,
     addr: String,
+    config: RpcClientConfig,
 }
 
 impl RemoteCaller {
@@ -191,15 +192,43 @@ pub struct RpcClient {
     inner: CallerWrapper,
 }
 
-impl RpcClient {
-    /// Create a new generic RPC client that can be transformed into specialized client.
-    pub fn new(addr: String) -> Self {
-        Self {
+#[derive(Clone, Debug)]
+pub struct RpcClientConfig {
+    rpc_auth: Option<String>,
+    proxy: Option<String>,
+    tls_config: Option<String>,
+}
+
+pub struct RpcClientBuilder {
+    config: RpcClientConfig,
+}
+
+impl RpcClientBuilder {
+    pub fn new() -> RpcClientBuilder {
+        RpcClientBuilder{
+            config: RpcClientConfig {
+                rpc_auth: None,
+                proxy: None,
+                tls_config: None,
+            }
+        }
+    }
+
+    pub fn build(self, addr: String) -> RpcClient {
+        RpcClient{
             inner: CallerWrapper(Arc::new(RemoteCaller {
                 http_client: reqwest::ClientBuilder::new().build().unwrap(),
                 addr,
+                config: self.config
             })),
         }
+    }
+}
+
+impl RpcClient {
+    /// Create a new generic RPC client that can be transformed into specialized client.
+    pub fn new(addr: String) -> Self {
+        RpcClientBuilder::new().build(addr)
     }
 
     /// Transform the client into the specialized `DaemonJsonRpcClient` that interacts with JSON RPC
