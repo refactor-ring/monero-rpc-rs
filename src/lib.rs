@@ -61,9 +61,18 @@ use std::{
 use tracing::*;
 use uuid::Uuid;
 
+use diqwest::WithDigestAuth;
+use crate::RpcAuthentication::Credentials;
+
 enum RpcParams {
     Array(Box<dyn Iterator<Item = Value> + Send + 'static>),
     Map(Box<dyn Iterator<Item = (String, Value)> + Send + 'static>),
+    None,
+}
+
+#[derive(Clone, Debug)]
+pub enum RpcAuthentication {
+    Credentials{username: String, password: String},
     None,
 }
 
@@ -118,13 +127,19 @@ impl RemoteCaller {
 
         trace!("Sending JSON-RPC method call: {:?}", method_call);
 
-        let rsp = client
+        let req = client
             .post(&uri)
-            .json(&method_call)
-            .send()
-            .await?
-            .json::<response::Output>()
-            .await?;
+            .json(&method_call);
+
+        let rsp = if let Credentials{username, password} = &self.config.rpc_auth {
+            req.send_with_digest_auth(username, password).await?
+                .json::<response::Output>()
+                .await?
+        } else{
+            req.send().await?
+                .json::<response::Output>()
+                .await?
+        };
 
         trace!("Received JSON-RPC response: {:?}", rsp);
         let v = jsonrpc_core::Result::<Value>::from(rsp);
@@ -194,7 +209,7 @@ pub struct RpcClient {
 
 #[derive(Clone, Debug)]
 pub struct RpcClientConfig {
-    rpc_auth: Option<String>,
+    rpc_auth: RpcAuthentication,
     proxy: Option<String>,
     tls_config: Option<String>,
 }
@@ -207,7 +222,7 @@ impl RpcClientBuilder {
     pub fn new() -> RpcClientBuilder {
         RpcClientBuilder{
             config: RpcClientConfig {
-                rpc_auth: None,
+                rpc_auth: RpcAuthentication::None,
                 proxy: None,
                 tls_config: None,
             }
@@ -222,6 +237,11 @@ impl RpcClientBuilder {
                 config: self.config
             })),
         }
+    }
+
+    pub fn rpc_authentication(mut self, auth: RpcAuthentication) -> Self {
+        self.config.rpc_auth = auth;
+        self
     }
 }
 
