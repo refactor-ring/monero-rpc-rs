@@ -30,6 +30,16 @@
 //! let daemon = client.daemon();
 //! let regtest_daemon = daemon.regtest();
 //! ```
+//!
+//! The client can be initialized with a proxy, for example a socks5 proxy to enable Tor:
+//!
+//! ```rust
+//! use monero_rpc::RpcClientBuilder;
+//!
+//! let client = RpcClientBuilder::new()
+//!         .proxy("socks5://127.0.0.1:9050".to_string())
+//!         .build("http://node.monerooutreach.org:18081".to_string());
+//! ```
 
 #![forbid(unsafe_code)]
 
@@ -61,8 +71,8 @@ use std::{
 use tracing::*;
 use uuid::Uuid;
 
-use diqwest::WithDigestAuth;
 use crate::RpcAuthentication::Credentials;
+use diqwest::WithDigestAuth;
 
 enum RpcParams {
     Array(Box<dyn Iterator<Item = Value> + Send + 'static>),
@@ -72,7 +82,7 @@ enum RpcParams {
 
 #[derive(Clone, Debug)]
 pub enum RpcAuthentication {
-    Credentials{username: String, password: String},
+    Credentials { username: String, password: String },
     None,
 }
 
@@ -127,20 +137,15 @@ impl RemoteCaller {
 
         trace!("Sending JSON-RPC method call: {:?}", method_call);
 
-        let req = client
-            .post(&uri)
-            .json(&method_call);
+        let req = client.post(&uri).json(&method_call);
 
-        let rsp = if let Credentials{username, password} = &self.config.rpc_auth {
+        let rsp = if let Credentials { username, password } = &self.config.rpc_auth {
             req.send_with_digest_auth(username, password)
                 .await?
                 .json::<response::Output>()
                 .await?
-        } else{
-            req.send()
-                .await?
-                .json::<response::Output>()
-                .await?
+        } else {
+            req.send().await?.json::<response::Output>().await?
         };
 
         trace!("Received JSON-RPC response: {:?}", rsp);
@@ -163,20 +168,15 @@ impl RemoteCaller {
             json_params
         );
 
-        let req = client
-            .post(uri)
-            .json(&json_params);
+        let req = client.post(uri).json(&json_params);
 
-        let rsp = if let Credentials{username, password} = &self.config.rpc_auth {
+        let rsp = if let Credentials { username, password } = &self.config.rpc_auth {
             req.send_with_digest_auth(username, password)
                 .await?
                 .json::<T>()
                 .await?
-        } else{
-            req.send()
-                .await?
-                .json::<T>()
-                .await?
+        } else {
+            req.send().await?.json::<T>().await?
         };
 
         trace!("Received daemon RPC response: {:?}", rsp);
@@ -230,27 +230,41 @@ pub struct RpcClientBuilder {
 
 impl RpcClientBuilder {
     pub fn new() -> RpcClientBuilder {
-        RpcClientBuilder{
+        RpcClientBuilder {
             config: RpcClientConfig {
                 rpc_auth: RpcAuthentication::None,
                 proxy: None,
                 tls_config: None,
-            }
+            },
         }
     }
 
     pub fn build(self, addr: String) -> RpcClient {
-        RpcClient{
+        let http_client = if let Some(proxy_address) = self.config.proxy.clone() {
+            reqwest::Client::builder()
+                .proxy(reqwest::Proxy::all(proxy_address).unwrap())
+                .build()
+                .unwrap()
+        } else {
+            reqwest::ClientBuilder::new().build().unwrap()
+        };
+
+        RpcClient {
             inner: CallerWrapper(Arc::new(RemoteCaller {
-                http_client: reqwest::ClientBuilder::new().build().unwrap(),
+                http_client,
                 addr,
-                config: self.config
+                config: self.config,
             })),
         }
     }
 
     pub fn rpc_authentication(mut self, auth: RpcAuthentication) -> Self {
         self.config.rpc_auth = auth;
+        self
+    }
+
+    pub fn proxy(mut self, proxy: String) -> Self {
+        self.config.proxy = Some(proxy);
         self
     }
 }

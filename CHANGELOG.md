@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Change the initialization of an RpcClient with ::new(...) to include a proxy argument. This allows the usage of e.g. a Tor socks proxy. This argument has to be a string pointing to the the address of the proxy and its protocol prefix, .e.g. "socks5://127.0.0.1:9050" for using a Tor proxy.
+
 ## [0.2.0] - 2022-07-29
 
 ### Added
