@@ -221,11 +221,16 @@ pub struct RpcClient {
 pub struct RpcClientConfig {
     rpc_auth: RpcAuthentication,
     proxy: Option<String>,
-    tls_config: Option<String>,
 }
 
 pub struct RpcClientBuilder {
     config: RpcClientConfig,
+}
+
+impl Default for RpcClientBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RpcClientBuilder {
@@ -234,7 +239,6 @@ impl RpcClientBuilder {
             config: RpcClientConfig {
                 rpc_auth: RpcAuthentication::None,
                 proxy: None,
-                tls_config: None,
             },
         }
     }
