@@ -731,6 +731,17 @@ pub async fn sweep_all_error_no_unlocked_balance(wallet: &WalletClient, args: Sw
     );
 }
 
+pub async fn sign_and_verify_assert_ok(wallet: &WalletClient, message: &str) {
+    let address_data = wallet.get_address(0, Some(vec![0])).await.unwrap();
+    let address = address_data.address;
+    let signature = wallet.sign(message.to_string()).await.unwrap();
+    let signature_ok = wallet
+        .verify(message.to_string(), address, signature)
+        .await
+        .unwrap();
+    assert!(signature_ok);
+}
+
 pub async fn get_attribute_error(wallet: &WalletClient, key: String) {
     let err = wallet.get_attribute(key).await.unwrap_err();
     assert_eq!(err.to_string(), "Server error: Attribute not found.");
